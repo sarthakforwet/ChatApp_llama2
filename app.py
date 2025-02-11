@@ -13,10 +13,12 @@ DEFAULT_MAX_NEW_TOKENS = 1024
 MAX_INPUT_TOKEN_LENGTH = 4000
  
 DESCRIPTION = """
-Application to perform text generation using Llama-3 model
+Chat Bot Assistant
 """
  
-LICENSE = """"""
+class GenerationState:
+    def __init__(self):
+        self.stop_generation = False
  
 logger.info("Starting")
 def clear_and_save_textbox(message: str) -> tuple[str, str]:
@@ -58,7 +60,10 @@ def generate(
         yield history + [(message, first_response)]
     except StopIteration:
         yield history + [(message, '')]
+
     for response in generator:
+        if generation_state.stop_generation:
+            return        
         yield history + [(message, response)]
  
  
@@ -75,7 +80,11 @@ def check_input_token_length(message: str, chat_history: list[tuple[str, str]], 
         logger.info("Inside IF condition")
         raise gr.Error(f'The accumulated input is too long ({input_token_length} > {MAX_INPUT_TOKEN_LENGTH}). Clear your chat history and try again.')
  
+def stop_generation_fn():
+    generation_state.stop_generation = True
  
+generation_state = GenerationState()
+    
 with gr.Blocks(css='style.css') as demo:
     gr.Markdown(DESCRIPTION)
 
@@ -96,7 +105,8 @@ with gr.Blocks(css='style.css') as demo:
         retry_button = gr.Button('Retry', variant='secondary')
         undo_button = gr.Button('Undo', variant='secondary')
         clear_button = gr.Button('Clear', variant='secondary')
- 
+        stop_button = gr.Button('Stop', variant='secondary')
+
     saved_input = gr.State()
  
     with gr.Accordion(label='Advanced options', open=False):
@@ -131,9 +141,7 @@ with gr.Blocks(css='style.css') as demo:
             step=1,
             value=50,
         )
- 
-    gr.Markdown(LICENSE)
- 
+  
     textbox.submit(
         fn=clear_and_save_textbox,
         inputs=textbox,
@@ -245,6 +253,13 @@ with gr.Blocks(css='style.css') as demo:
         queue=False,
         api_name=False,
     )
- 
+    stop_button.click(
+        fn=stop_generation_fn,
+        inputs=None,
+        outputs=None,
+        queue=False,
+        api_name=False
+    )
+
 # Launch the application
-demo.queue(max_size=20).launch(share=False, server_name="0.0.0.0")
+demo.queue(max_size=20).launch(share=True)
